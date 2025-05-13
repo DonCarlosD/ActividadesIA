@@ -114,7 +114,7 @@ def conectar_vecinos(grid, filas):
 def heuristica(nodo1, nodo2):
     dx = abs(nodo1.fila - nodo2.fila)
     dy = abs(nodo1.col - nodo2.col)
-    return dx + dy  
+    return dx + dy  # Distancia de Manhattan
 
 # Algoritmo A* para encontrar el camino óptimo
 def a_estrella(start, end, grid):
@@ -141,6 +141,9 @@ def a_estrella(start, end, grid):
             dy = abs(vecino.col - current.col)
             # Coste base: 1 para rectos, √2 para diagonales
             costo_movimiento = 1 if dx + dy == 1 else math.sqrt(2)
+            # Coste adicional basado en el terreno (ejemplo: agua tiene un coste de 2)
+            if vecino.color == AZUL:  # Supongamos que el agua es de color azul
+                costo_movimiento += 1
             tentative_g = current.g + costo_movimiento
 
             if tentative_g < vecino.g:

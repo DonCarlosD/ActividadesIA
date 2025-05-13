@@ -1,3 +1,9 @@
+# regresion lineal con tercer variable no va a jalar
+# x1 = velocidad de la bala
+# x2 = distancia entre el jugador y la bala
+# y = salto (1 o 0)
+# 
+
 import pygame
 import random
 
