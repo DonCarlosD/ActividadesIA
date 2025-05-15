@@ -3,7 +3,7 @@ import heapq
 import math
 
 # Configuración de la ventana y el tamaño de la cuadrícula
-ANCHO_VENTANA = 700  # Ancho de la ventana en píxeles
+ANCHO_VENTANA = 800  # Ancho de la ventana en píxeles
 FILAS = 11  # Número de filas y columnas (cuadrícula de 11x11)
 ANCHO_NODO = ANCHO_VENTANA // FILAS  # Tamaño de cada nodo en píxeles
 
@@ -49,13 +49,23 @@ class Nodo:
         self.color = NEGRO  # Marca el nodo como pared (color negro)
 
     def dibujar(self, ventana):
-        pygame.draw.rect(ventana, self.color, (self.x, self.y, ANCHO_NODO, ANCHO_NODO))  # Dibuja el nodo
-
+        pygame.draw.rect(ventana, self.color, (self.x, self.y, ANCHO_NODO, ANCHO_NODO))
+    
     def _lt_(self, other):
         if self.f == other.f:
             # Desempate basado en la posición (prioriza nodos con menor fila o columna)
             return (self.fila + self.col) < (other.fila + other.col)
         return self.f < other.f
+    def dibujar_info(self, ventana, font, end):
+         # Muestra g, h, f y el padre en la casilla
+        g_text = font.render(f"g:{int(self.g) if self.g != float('inf') else '-'}", True, (0,0,0))
+        h_text = font.render(f"h:{int(heuristica(self, end)) if end else '-'}", True, (0,0,0))
+        f_text = font.render(f"f:{int(self.f) if self.f != float('inf') else '-'}", True, (0,0,0))
+        padre_text = font.render(f"P:{self.padre.fila},{self.padre.col}" if self.padre else "P:-", True, (0,0,0))
+        ventana.blit(g_text, (self.x+2, self.y+2))
+        ventana.blit(h_text, (self.x+2, self.y+15))
+        ventana.blit(f_text, (self.x+2, self.y+28))
+        ventana.blit(padre_text, (self.x+2, self.y+41))
 
 # Crea la cuadrícula de nodos
 def crear_grid(filas):
@@ -75,13 +85,14 @@ def dibujar_grid(ventana, filas):
             pygame.draw.line(ventana, GRIS, (j * ANCHO_NODO, 0), (j * ANCHO_NODO, ANCHO_VENTANA))  # Líneas verticales
 
 # Dibuja la cuadrícula completa con los nodos
-def dibujar(ventana, grid, filas):
-    ventana.fill(BLANCO)  # Limpia la ventana con color blanco
+def dibujar(ventana, grid, filas, font, end):
+    ventana.fill(BLANCO)
     for fila in grid:
         for nodo in fila:
-            nodo.dibujar(ventana)  # Dibuja cada nodo
-    dibujar_grid(ventana, filas)  # Dibuja las líneas de la cuadrícula
-    pygame.display.update()  # Actualiza la pantalla
+            nodo.dibujar(ventana)
+            nodo.dibujar_info(ventana, font, end)
+    dibujar_grid(ventana, filas)
+    pygame.display.update()
 
 # Obtiene la posición de un clic del mouse y la convierte en coordenadas de la cuadrícula
 def obtener_click_pos(pos, filas):
@@ -114,11 +125,12 @@ def conectar_vecinos(grid, filas):
 def heuristica(nodo1, nodo2):
     dx = abs(nodo1.fila - nodo2.fila)
     dy = abs(nodo1.col - nodo2.col)
-    return dx + dy  # Distancia de Manhattan
+    return 10 * (dx + dy)
 
 # Algoritmo A* para encontrar el camino óptimo
-def a_estrella(start, end, grid):
+def a_estrella(start, end, grid, font):
     open_set = []
+    closed_set = set()
     heapq.heappush(open_set, (start.f, 0, start))
     start.g = 0
     start.f = heuristica(start, end)
@@ -131,19 +143,32 @@ def a_estrella(start, end, grid):
                 return []
 
         current = heapq.heappop(open_set)[2]
+        closed_set.add(current)  # <-- Agrega esta línea
         current.explorado = True
 
+        # Imprime información del nodo actual
+        print(f"Nodo actual: ({current.fila},{current.col}) g={current.g:.2f} h={heuristica(current, end)} f={current.f:.2f} padre={f'({current.padre.fila},{current.padre.col})' if current.padre else '-'}")
+
         if current == end:
-            return reconstruir_camino(end)
+            print("Camino encontrado.")
+            camino = reconstruir_camino(end)
+            print("Camino final:")
+            for nodo in camino:
+                print(f"({nodo.fila},{nodo.col})", end=" -> ")
+            print()
+            return camino
 
         for vecino in current.vecinos:
             dx = abs(vecino.fila - current.fila)
             dy = abs(vecino.col - current.col)
-            # Coste base: 1 para rectos, √2 para diagonales
-            costo_movimiento = 1 if dx + dy == 1 else math.sqrt(2)
-            # Coste adicional basado en el terreno (ejemplo: agua tiene un coste de 2)
-            if vecino.color == AZUL:  # Supongamos que el agua es de color azul
-                costo_movimiento += 1
+            # Coste base: 10 para rectos, 14 para diagonales
+            if dx + dy == 1:
+                costo_movimiento = 10  # Arriba, abajo, izquierda, derecha
+            elif dx == 1 and dy == 1:
+                costo_movimiento = 14  # Diagonal
+            else:
+                continue  # No debería ocurrir, pero por seguridad
+
             tentative_g = current.g + costo_movimiento
 
             if tentative_g < vecino.g:
@@ -153,9 +178,12 @@ def a_estrella(start, end, grid):
                 if not any(vecino == item[2] for item in open_set):
                     counter += 1
                     heapq.heappush(open_set, (vecino.f, counter, vecino))
+        # Imprime listas abierta y cerrada
+        print("Lista abierta:", [(n[2].fila, n[2].col) for n in open_set])
+        print("Lista cerrada:", [(nodo.fila, nodo.col) for nodo in closed_set])
 
         # Visualización
-        dibujar(VENTANA, grid, FILAS)
+        dibujar(VENTANA, grid, FILAS, font, end)
         for fila in grid:
             for nodo in fila:
                 if nodo.explorado and nodo != start and nodo != end:
@@ -187,9 +215,10 @@ def main():
     end = None  # Nodo de fin
     running = True  # Controla el bucle principal
     solving = False  # Indica si el algoritmo está en ejecución
+    font = pygame.font.SysFont("Arial", 12)
 
     while running:
-        dibujar(VENTANA, grid, FILAS)  # Dibuja la cuadrícula
+        dibujar(VENTANA, grid, FILAS, font, end)  # Dibuja la cuadrícula
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # Si el usuario cierra la ventana
                 running = False
@@ -224,7 +253,7 @@ def main():
                 if event.key == pygame.K_SPACE and start and end and not solving:  # Presiona espacio para iniciar A*
                     conectar_vecinos(grid, FILAS)  # Conecta los vecinos
                     solving = True  # Indica que el algoritmo está en ejecución
-                    a_estrella(start, end, grid)  # Ejecuta A*
+                    a_estrella(start, end, grid, font)  # Ejecuta A*
 
     pygame.quit()  # Cierra Pygame
 
