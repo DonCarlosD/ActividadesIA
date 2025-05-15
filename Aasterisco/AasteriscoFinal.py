@@ -15,6 +15,8 @@ VERDE = (0, 255, 0)  # Nodo de inicio
 ROJO = (255, 0, 0)  # Nodo de fin
 AZUL = (0, 0, 255)  # Camino más corto
 AMARILLO = (255, 255, 0)  # Nodos explorados
+CYAN = (0, 255, 255)      # Nodo actual
+NARANJA = (255, 165, 0)   # Nodos en open set
 
 # Inicializar Pygame
 pygame.init()
@@ -51,13 +53,13 @@ class Nodo:
     def dibujar(self, ventana):
         pygame.draw.rect(ventana, self.color, (self.x, self.y, ANCHO_NODO, ANCHO_NODO))
     
-    def _lt_(self, other):
+    def __lt__(self, other):
         if self.f == other.f:
             # Desempate basado en la posición (prioriza nodos con menor fila o columna)
             return (self.fila + self.col) < (other.fila + other.col)
         return self.f < other.f
+
     def dibujar_info(self, ventana, font, end):
-         # Muestra g, h, f y el padre en la casilla
         g_text = font.render(f"g:{int(self.g) if self.g != float('inf') else '-'}", True, (0,0,0))
         h_text = font.render(f"h:{int(heuristica(self, end)) if end else '-'}", True, (0,0,0))
         f_text = font.render(f"f:{int(self.f) if self.f != float('inf') else '-'}", True, (0,0,0))
@@ -105,30 +107,39 @@ def obtener_click_pos(pos, filas):
 def conectar_vecinos(grid, filas):
     for fila in grid:
         for nodo in fila:
-            if not nodo.es_pared():  # Si el nodo no es una pared
-                # Vecinos horizontales y verticales
-                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    if 0 <= nodo.fila + dx < filas and 0 <= nodo.col + dy < filas:
-                        vecino = grid[nodo.fila + dx][nodo.col + dy]
-                        if not vecino.es_pared():
-                            nodo.vecinos.append(vecino)
-                # Vecinos diagonales
-                for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
-                    if 0 <= nodo.fila + dx < filas and 0 <= nodo.col + dy < filas:
-                        # Verificar que no haya paredes bloqueando el movimiento diagonal
-                        if not grid[nodo.fila + dx][nodo.col].es_pared() and not grid[nodo.fila][nodo.col + dy].es_pared():
-                            vecino = grid[nodo.fila + dx][nodo.col + dy]
-                            if not vecino.es_pared():
-                                nodo.vecinos.append(vecino)
+            nodo.vecinos = []
+            if nodo.es_pared():
+                continue
+
+            # Direcciones: (dx, dy, es_diagonal)
+            direcciones = [
+                (-1, 0, False), (1, 0, False), (0, -1, False), (0, 1, False),  # Cardinales
+                (-1, -1, True), (-1, 1, True), (1, -1, True), (1, 1, True)     # Diagonales
+            ]
+
+            for dx, dy, diagonal in direcciones:
+                nx, ny = nodo.fila + dx, nodo.col + dy
+                if 0 <= nx < filas and 0 <= ny < filas:
+                    vecino = grid[nx][ny]
+                    if vecino.es_pared():
+                        continue
+                    if diagonal:
+                        # Ambos adyacentes cardinales deben estar libres y la diagonal también
+                        if grid[nodo.fila][ny].es_pared() or grid[nx][nodo.col].es_pared():
+                            continue
+                        # Además, si la celda diagonal es pared, tampoco se permite
+                        if grid[nx][ny].es_pared():
+                            continue
+                    nodo.vecinos.append(vecino)
 
 # Función heurística: distancia de Chebyshev (adecuada para diagonales)
 def heuristica(nodo1, nodo2):
     dx = abs(nodo1.fila - nodo2.fila)
     dy = abs(nodo1.col - nodo2.col)
-    return 10 * (dx + dy)
+    return (dx + dy)*10
 
 # Algoritmo A* para encontrar el camino óptimo
-def a_estrella(start, end, grid, font):
+def a_estrella(start, end, grid):
     open_set = []
     closed_set = set()
     heapq.heappush(open_set, (start.f, 0, start))
@@ -143,11 +154,11 @@ def a_estrella(start, end, grid, font):
                 return []
 
         current = heapq.heappop(open_set)[2]
-        closed_set.add(current)  # <-- Agrega esta línea
+        closed_set.add(current)
         current.explorado = True
 
         # Imprime información del nodo actual
-        print(f"Nodo actual: ({current.fila},{current.col}) g={current.g:.2f} h={heuristica(current, end)} f={current.f:.2f} padre={f'({current.padre.fila},{current.padre.col})' if current.padre else '-'}")
+        print(f"Nodo actual: ({current.fila},{current.col}) g={current.g:.2f} h={heuristica(current, end)} f={current.f:.2f} padre={f'({current.padre.fila},{current.col})' if current.padre else '-'}")
 
         if current == end:
             print("Camino encontrado.")
@@ -161,13 +172,85 @@ def a_estrella(start, end, grid, font):
         for vecino in current.vecinos:
             dx = abs(vecino.fila - current.fila)
             dy = abs(vecino.col - current.col)
-            # Coste base: 10 para rectos, 14 para diagonales
             if dx + dy == 1:
-                costo_movimiento = 10  # Arriba, abajo, izquierda, derecha
-            elif dx == 1 and dy == 1:
-                costo_movimiento = 14  # Diagonal
+                costo_movimiento = 10
             else:
-                continue  # No debería ocurrir, pero por seguridad
+                costo_movimiento = 14
+            
+            tentative_g = current.g + costo_movimiento
+
+            if tentative_g < vecino.g:
+                vecino.padre = current
+                vecino.g = tentative_g
+                vecino.f = tentative_g + heuristica(vecino, end)
+                if not any(vecino == item[2] for item in open_set):
+                    counter += 1
+                    heapq.heappush(open_set, (vecino.f, counter, vecino))
+
+        # Imprime listas abierta y cerrada
+        print("Lista abierta:", [(n[2].fila, n[2].col) for n in open_set])
+        print("Lista cerrada:", [(nodo.fila, nodo.col) for nodo in closed_set])
+
+        # Visualización
+        dibujar(VENTANA, grid, FILAS, pygame.font.SysFont("Arial", 12), end)
+        for fila in grid:
+            for nodo in fila:
+                if nodo.explorado and nodo != start and nodo != end:
+                    nodo.color = AMARILLO
+        start.dibujar(VENTANA)
+        end.dibujar(VENTANA)
+        pygame.display.update()
+        clock.tick(30)
+
+    print("No se encontró camino.")
+    return []
+
+# Algoritmo A* paso a paso
+def a_estrella_paso_a_paso(start, end, grid):
+    open_set = []
+    closed_set = set()
+    heapq.heappush(open_set, (start.f, 0, start))
+    start.g = 0
+    start.f = heuristica(start, end)
+    counter = 0
+
+    while open_set:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+
+        # Colorea todos los nodos en open_set como NARANJA (excepto start y end)
+        for _, _, nodo in open_set:
+            if nodo != start and nodo != end and not nodo.explorado:
+                nodo.color = NARANJA
+
+        # Colorea todos los nodos explorados como AMARILLO (excepto start y end)
+        for fila in grid:
+            for nodo in fila:
+                if nodo.explorado and nodo != start and nodo != end:
+                    nodo.color = AMARILLO
+
+        current = heapq.heappop(open_set)[2]
+        closed_set.add(current)
+        current.explorado = True
+
+        # Colorea el nodo actual como CYAN (excepto start y end)
+        if current != start and current != end:
+            current.color = CYAN
+
+        if current == end:
+            reconstruir_camino(end)
+            yield True  # Camino encontrado
+            return
+
+        for vecino in current.vecinos:
+            dx = abs(vecino.fila - current.fila)
+            dy = abs(vecino.col - current.col)
+            if dx + dy == 1:
+                costo_movimiento = 10
+            else:
+                costo_movimiento = 14
 
             tentative_g = current.g + costo_movimiento
 
@@ -178,22 +261,10 @@ def a_estrella(start, end, grid, font):
                 if not any(vecino == item[2] for item in open_set):
                     counter += 1
                     heapq.heappush(open_set, (vecino.f, counter, vecino))
-        # Imprime listas abierta y cerrada
-        print("Lista abierta:", [(n[2].fila, n[2].col) for n in open_set])
-        print("Lista cerrada:", [(nodo.fila, nodo.col) for nodo in closed_set])
 
-        # Visualización
-        dibujar(VENTANA, grid, FILAS, font, end)
-        for fila in grid:
-            for nodo in fila:
-                if nodo.explorado and nodo != start and nodo != end:
-                    nodo.color = AMARILLO
-        start.dibujar(VENTANA)
-        end.dibujar(VENTANA)
-        pygame.display.update()
-        clock.tick(30)
+        yield False  # Un paso realizado
 
-    return []
+    yield None  # No se encontró camino
 
 # Reconstruye el camino encontrado por A*
 def reconstruir_camino(end):
@@ -210,15 +281,16 @@ def reconstruir_camino(end):
 
 # Función principal del programa
 def main():
-    grid = crear_grid(FILAS)  # Crea la cuadrícula
-    start = None  # Nodo de inicio
-    end = None  # Nodo de fin
-    running = True  # Controla el bucle principal
-    solving = False  # Indica si el algoritmo está en ejecución
+    grid = crear_grid(FILAS)
+    start = None
+    end = None
+    running = True
+    solving = False
+    paso_a_paso = None
     font = pygame.font.SysFont("Arial", 12)
 
     while running:
-        dibujar(VENTANA, grid, FILAS, font, end)  # Dibuja la cuadrícula
+        dibujar(VENTANA, grid, FILAS, font, end)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:  # Si el usuario cierra la ventana
                 running = False
@@ -253,7 +325,14 @@ def main():
                 if event.key == pygame.K_SPACE and start and end and not solving:  # Presiona espacio para iniciar A*
                     conectar_vecinos(grid, FILAS)  # Conecta los vecinos
                     solving = True  # Indica que el algoritmo está en ejecución
-                    a_estrella(start, end, grid, font)  # Ejecuta A*
+                    paso_a_paso = a_estrella_paso_a_paso(start, end, grid)  # Ejecuta A* paso a paso
+                if event.key == pygame.K_n and solving and paso_a_paso:
+                    try:
+                        resultado = next(paso_a_paso)
+                        if resultado is not False:
+                            solving = False  # Termina si encuentra camino o no hay más pasos
+                    except StopIteration:
+                        solving = False
 
     pygame.quit()  # Cierra Pygame
 
