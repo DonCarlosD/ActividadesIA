@@ -199,6 +199,11 @@ def a_estrella(start, end, grid):
         print("Lista abierta:", [(n[2].fila, n[2].col) for n in open_set])
         print("Lista cerrada:", [(nodo.fila, nodo.col) for nodo in closed_set])
 
+        # Colorea todos los nodos en open_set como NARANJA (excepto start, end y el actual)
+        for _, _, nodo in open_set:
+            if nodo != start and nodo != end and nodo != current and not nodo.explorado:
+                nodo.color = NARANJA
+
         # Visualización
         dibujar(VENTANA, grid, FILAS, pygame.font.SysFont("Arial", 12), end)
         for fila in grid:
@@ -228,9 +233,9 @@ def a_estrella_paso_a_paso(start, end, grid):
                 pygame.quit()
                 return
 
-        # Colorea todos los nodos en open_set como NARANJA (excepto start y end)
+        # Colorea todos los nodos en open_set como NARANJA (excepto start, end y el actual)
         for _, _, nodo in open_set:
-            if nodo != start and nodo != end and not nodo.explorado:
+            if nodo != start and nodo != end and nodo != current and not nodo.explorado:
                 nodo.color = NARANJA
 
         # Colorea todos los nodos explorados como AMARILLO (excepto start y end)
@@ -270,6 +275,8 @@ def a_estrella_paso_a_paso(start, end, grid):
                     counter += 1
                     heapq.heappush(open_set, (vecino.f, counter, vecino))
 
+        # Visualización
+        dibujar(VENTANA, grid, FILAS, pygame.font.SysFont("Arial", 12), end)
         yield False  # Un paso realizado
 
     yield None  # No se encontró camino
