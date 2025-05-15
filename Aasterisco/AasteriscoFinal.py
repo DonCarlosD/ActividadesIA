@@ -29,8 +29,8 @@ class Nodo:
     def __init__(self, fila, col):
         self.fila = fila  # Fila en la cuadrícula
         self.col = col  # Columna en la cuadrícula
-        self.x = fila * ANCHO_NODO  # Posición x en píxeles
-        self.y = col * ANCHO_NODO  # Posición y en píxeles
+        self.x = self.col * ANCHO_NODO  # Posición x en píxeles
+        self.y = self.fila * ANCHO_NODO  # Posición y en píxeles
         self.color = BLANCO  # Color inicial (espacio libre)
         self.vecinos = []  # Lista de nodos vecinos accesibles
         self.g = float('inf')  # Costo acumulado desde el inicio
@@ -53,7 +53,7 @@ class Nodo:
     def dibujar(self, ventana):
         pygame.draw.rect(ventana, self.color, (self.x, self.y, ANCHO_NODO, ANCHO_NODO))
     
-    def __lt__(self, other):
+    def __lt__(self, other): 
         if self.f == other.f:
             # Desempate basado en la posición (prioriza nodos con menor fila o columna)
             return (self.fila + self.col) < (other.fila + other.col)
@@ -99,8 +99,8 @@ def dibujar(ventana, grid, filas, font, end):
 # Obtiene la posición de un clic del mouse y la convierte en coordenadas de la cuadrícula
 def obtener_click_pos(pos, filas):
     x, y = pos
-    fila = x // ANCHO_NODO  # Calcula la fila en la cuadrícula
-    col = y // ANCHO_NODO  # Calcula la columna en la cuadrícula
+    col = x // ANCHO_NODO  # Calcula la columna en la cuadrícula
+    fila = y // ANCHO_NODO  # Calcula la fila en la cuadrícula
     return fila, col
 
 # Conecta los nodos vecinos (incluyendo diagonales)
@@ -111,7 +111,6 @@ def conectar_vecinos(grid, filas):
             if nodo.es_pared():
                 continue
 
-            # Direcciones: (dx, dy, es_diagonal)
             direcciones = [
                 (-1, 0, False), (1, 0, False), (0, -1, False), (0, 1, False),  # Cardinales
                 (-1, -1, True), (-1, 1, True), (1, -1, True), (1, 1, True)     # Diagonales
@@ -124,11 +123,20 @@ def conectar_vecinos(grid, filas):
                     if vecino.es_pared():
                         continue
                     if diagonal:
-                        # Ambos adyacentes cardinales deben estar libres y la diagonal también
-                        if grid[nodo.fila][ny].es_pared() or grid[nx][nodo.col].es_pared():
-                            continue
-                        # Además, si la celda diagonal es pared, tampoco se permite
-                        if grid[nx][ny].es_pared():
+                        # Solo bloquear si ambos adyacentes cardinales son pared
+                        adyacentes = []
+                        ady1_f, ady1_c = nodo.fila, nodo.col + dy
+                        if 0 <= ady1_f < filas and 0 <= ady1_c < filas:
+                            adyacentes.append(grid[ady1_f][ady1_c].es_pared())
+                        else:
+                            adyacentes.append(False)
+                        ady2_f, ady2_c = nodo.fila + dx, nodo.col
+                        if 0 <= ady2_f < filas and 0 <= ady2_c < filas:
+                            adyacentes.append(grid[ady2_f][ady2_c].es_pared())
+                        else:
+                            adyacentes.append(False)
+                        # Solo bloquear si ambos son pared
+                        if all(adyacentes):
                             continue
                     nodo.vecinos.append(vecino)
 
@@ -322,10 +330,11 @@ def main():
                     clicked_node.color = BLANCO  # Restablece el color
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and start and end and not solving:  # Presiona espacio para iniciar A*
-                    conectar_vecinos(grid, FILAS)  # Conecta los vecinos
-                    solving = True  # Indica que el algoritmo está en ejecución
-                    paso_a_paso = a_estrella_paso_a_paso(start, end, grid)  # Ejecuta A* paso a paso
+                if event.key == pygame.K_SPACE and start and end and not solving:
+                    conectar_vecinos(grid, FILAS)
+                    solving = True
+                    a_estrella(start, end, grid)
+                    solving = False
                 if event.key == pygame.K_n and solving and paso_a_paso:
                     try:
                         resultado = next(paso_a_paso)
