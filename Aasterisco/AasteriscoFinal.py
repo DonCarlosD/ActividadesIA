@@ -218,68 +218,6 @@ def a_estrella(start, end, grid):
     print("No se encontró camino.")
     return []
 
-# Algoritmo A* paso a paso
-def a_estrella_paso_a_paso(start, end, grid):
-    open_set = []
-    closed_set = set()
-    heapq.heappush(open_set, (start.f, 0, start))
-    start.g = 0
-    start.f = heuristica(start, end)
-    counter = 0
-
-    while open_set:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                return
-
-        # Colorea todos los nodos en open_set como NARANJA (excepto start, end y el actual)
-        for _, _, nodo in open_set:
-            if nodo != start and nodo != end and nodo != current and not nodo.explorado:
-                nodo.color = NARANJA
-
-        # Colorea todos los nodos explorados como AMARILLO (excepto start y end)
-        for fila in grid:
-            for nodo in fila:
-                if nodo.explorado and nodo != start and nodo != end:
-                    nodo.color = AMARILLO
-
-        current = heapq.heappop(open_set)[2]
-        closed_set.add(current)
-        current.explorado = True
-
-        # Colorea el nodo actual como CYAN (excepto start y end)
-        if current != start and current != end:
-            current.color = CYAN
-
-        if current == end:
-            reconstruir_camino(end)
-            yield True  # Camino encontrado
-            return
-
-        for vecino in current.vecinos:
-            dx = abs(vecino.fila - current.fila)
-            dy = abs(vecino.col - current.col)
-            if dx + dy == 1:
-                costo_movimiento = 10
-            else:
-                costo_movimiento = 14
-
-            tentative_g = current.g + costo_movimiento
-
-            if tentative_g < vecino.g:
-                vecino.padre = current
-                vecino.g = tentative_g
-                vecino.f = tentative_g + heuristica(vecino, end)
-                if not any(vecino == item[2] for item in open_set):
-                    counter += 1
-                    heapq.heappush(open_set, (vecino.f, counter, vecino))
-
-        # Visualización
-        dibujar(VENTANA, grid, FILAS, pygame.font.SysFont("Arial", 12), end)
-        yield False  # Un paso realizado
-
-    yield None # No se encontró camino
 
 # Reconstruye el camino encontrado por A*
 def reconstruir_camino(end):
@@ -342,13 +280,7 @@ def main():
                     solving = True
                     a_estrella(start, end, grid)
                     solving = False
-                if event.key == pygame.K_n and solving and paso_a_paso:
-                    try:
-                        resultado = next(paso_a_paso)
-                        if resultado is not False:
-                            solving = False  # Termina si encuentra camino o no hay más pasos
-                    except StopIteration:
-                        solving = False
+                
 
     pygame.quit()  # Cierra Pygame
 
