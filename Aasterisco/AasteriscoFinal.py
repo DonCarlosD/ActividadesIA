@@ -140,7 +140,7 @@ def conectar_vecinos(grid, filas):
                             continue
                     nodo.vecinos.append(vecino)
 
-# Función heurística: distancia de Chebyshev (adecuada para diagonales)
+# Función heurística: distancia de Manhatan
 def heuristica(nodo1, nodo2):
     dx = abs(nodo1.fila - nodo2.fila)
     dy = abs(nodo1.col - nodo2.col)
@@ -279,7 +279,7 @@ def a_estrella_paso_a_paso(start, end, grid):
         dibujar(VENTANA, grid, FILAS, pygame.font.SysFont("Arial", 12), end)
         yield False  # Un paso realizado
 
-    yield None  # No se encontró camino
+    yield None # No se encontró camino
 
 # Reconstruye el camino encontrado por A*
 def reconstruir_camino(end):
