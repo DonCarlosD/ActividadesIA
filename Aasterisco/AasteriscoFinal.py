@@ -280,6 +280,13 @@ def main():
                     solving = True
                     a_estrella(start, end, grid)
                     solving = False
+                elif event.key == pygame.K_r:  # Reiniciar todo
+                    grid = crear_grid(FILAS)
+                    start = None
+                    end = None
+                    solving = False
+                elif event.key == pygame.K_q:  # Salir del programa
+                    running = False
                 
 
     pygame.quit()  # Cierra Pygame
