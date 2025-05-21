@@ -61,7 +61,12 @@ fondo_img = pygame.transform.scale(fondo_img, (w, h))
 jugador = pygame.Rect(50, h - 100, 32, 48)
 bala = pygame.Rect(w - 50, h - 90, 16, 16)
 nave = pygame.Rect(w - 100, h - 100, 64, 64)
+nave_arriba = pygame.Rect(jugador.x, jugador.y - 64, 64, 64)  # Nueva nave arriba del jugador
 menu_rect = pygame.Rect(w // 2 - 135, h // 2 - 90, 270, 180)  # Tamaño del menú
+
+pelota_nave = pygame.Rect(jugador.x, 0, 16, 16)  # Pelotita lanzada desde la nave de arriba
+velocidad_pelota_nave = 0
+pelota_en_caida = False
 
 # Variables para la animación del jugador
 current_frame = 0
@@ -75,6 +80,12 @@ bala_disparada = False
 # Variables para el fondo en movimiento
 fondo_x1 = 0
 fondo_x2 = w
+
+# Nueva variable para controlar si el jugador está esquivando a la izquierda
+esquivando_izquierda = False
+regresando = False
+posicion_inicial = 50  # X inicial del jugador
+posicion_izquierda = 10  # X a la que se mueve para esquivar
 
 # Función para disparar la bala
 def disparar_bala():
@@ -106,7 +117,8 @@ def manejar_salto():
 
 # Función para actualizar el juego
 def update():
-    global bala, velocidad_bala, current_frame, frame_count, fondo_x1, fondo_x2
+    global bala, velocidad_bala, current_frame, frame_count, fondo_x1, fondo_x2, nave_arriba
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida
 
     # Mover el fondo
     fondo_x1 -= 1
@@ -133,8 +145,30 @@ def update():
     # Dibujar el jugador con la animación
     pantalla.blit(jugador_frames[current_frame], (jugador.x, jugador.y))
 
-    # Dibujar la nave
-    pantalla.blit(nave_img, (nave.x, nave.y))
+    # La nave de arriba siempre está fija en la parte superior, alineada con la posición inicial del jugador
+    nave_arriba.x = posicion_inicial - 16  # Centrar la nave sobre la posición inicial del jugador
+    nave_arriba.y = 0  # Siempre arriba
+
+    # Lanzar la pelotita si no está cayendo
+    if not pelota_en_caida:
+        pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8  # Centrar respecto a la nave
+        pelota_nave.y = nave_arriba.y + nave_arriba.height
+        velocidad_pelota_nave = gravedad
+        pelota_en_caida = True
+
+    # Mover la pelotita si está cayendo
+    if pelota_en_caida:
+        pelota_nave.y += velocidad_pelota_nave
+        pantalla.blit(bala_img, (pelota_nave.x, pelota_nave.y))  # Puedes usar otra imagen si quieres
+
+        # Colisión entre la pelotita y el jugador
+        if jugador.colliderect(pelota_nave):
+            print("¡Colisión con la pelotita de la nave!")
+            reiniciar_juego()
+
+        # Si la pelotita llega al suelo, reiniciar
+        if pelota_nave.y > h:
+            pelota_en_caida = False
 
     # Mover y dibujar la bala
     if bala_disparada:
@@ -150,6 +184,17 @@ def update():
     if jugador.colliderect(bala):
         print("Colisión detectada!")
         reiniciar_juego()  # Terminar el juego y mostrar el menú
+
+    # Dibujar la nave
+    pantalla.blit(nave_img, (nave.x, nave.y))
+    pantalla.blit(nave_img, (nave_arriba.x, nave_arriba.y))  # Dibuja la nueva nave arriba del jugador
+
+def lanzar_pelota_nave():
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida
+    pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8  # Centrar la pelotita respecto a la nave
+    pelota_nave.y = nave_arriba.y + nave_arriba.height
+    velocidad_pelota_nave = gravedad  # Velocidad igual a la gravedad
+    pelota_en_caida = True
 
 # Función para guardar datos del modelo en modo manual
 def guardar_datos():
@@ -208,7 +253,7 @@ def reiniciar_juego():
     mostrar_menu()  # Mostrar el menú de nuevo para seleccionar modo
 
 def main():
-    global salto, en_suelo, bala_disparada
+    global salto, en_suelo, bala_disparada, esquivando_izquierda, regresando
 
     reloj = pygame.time.Clock()
     mostrar_menu()  # Mostrar el menú al inicio
@@ -219,22 +264,35 @@ def main():
             if evento.type == pygame.QUIT:
                 correr = False
             if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_SPACE and en_suelo and not pausa:  # Detectar la tecla espacio para saltar
-                    salto = True
-                    en_suelo = False
-                if evento.key == pygame.K_p:  # Presiona 'p' para pausar el juego
+                if evento.key == pygame.K_LEFT or evento.key == pygame.K_a:
+                    # Mover a la izquierda para esquivar la pelota de arriba
+                    if not esquivando_izquierda and jugador.x == posicion_inicial:
+                        jugador.x = posicion_izquierda
+                        esquivando_izquierda = True
+                        regresando = False
+                if evento.key == pygame.K_UP and en_suelo and not pausa:
+                    # Solo puede saltar después de esquivar a la izquierda
+                    if esquivando_izquierda:
+                        salto = True
+                        en_suelo = False
+                        regresando = True  # Después del salto, debe regresar
+                if evento.key == pygame.K_p:
                     pausa_juego()
-                if evento.key == pygame.K_q:  # Presiona 'q' para terminar el juego
+                if evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
                     pygame.quit()
                     exit()
 
         if not pausa:
-            # Modo manual: el jugador controla el salto
+            # Modo manual: el jugador controla el salto y el movimiento lateral
             if not modo_auto:
                 if salto:
                     manejar_salto()
-                # Guardar los datos si estamos en modo manual
+                # Cuando termina el salto y debe regresar
+                if regresando and not salto and en_suelo and jugador.x != posicion_inicial:
+                    jugador.x = posicion_inicial
+                    esquivando_izquierda = False
+                    regresando = False
                 guardar_datos()
 
             # Actualizar el juego
