@@ -241,6 +241,8 @@ def mostrar_menu():
 # Función para reiniciar el juego tras la colisión
 def reiniciar_juego():
     global menu_activo, jugador, bala, nave, bala_disparada, salto, en_suelo
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida, nave_arriba  # <-- agrega estas variables
+
     menu_activo = True  # Activar de nuevo el menú
     jugador.x, jugador.y = 50, h - 100  # Reiniciar posición del jugador
     bala.x = w - 50  # Reiniciar posición de la bala
@@ -248,6 +250,13 @@ def reiniciar_juego():
     bala_disparada = False
     salto = False
     en_suelo = True
+
+    # Reiniciar la pelotita de la nave de arriba
+    pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8
+    pelota_nave.y = nave_arriba.y + nave_arriba.height
+    velocidad_pelota_nave = gravedad
+    pelota_en_caida = False
+
     # Mostrar los datos recopilados hasta el momento
     print("Datos recopilados para el modelo: ", datos_modelo)
     mostrar_menu()  # Mostrar el menú de nuevo para seleccionar modo
