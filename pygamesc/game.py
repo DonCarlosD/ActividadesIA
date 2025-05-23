@@ -244,7 +244,8 @@ def mostrar_menu():
 # Función para reiniciar el juego tras la colisión
 def reiniciar_juego():
     global menu_activo, jugador, bala, nave, bala_disparada, salto, en_suelo
-    global pelota_nave, velocidad_pelota_nave, pelota_en_caida, nave_arriba  # <-- agrega estas variables
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida, nave_arriba
+    global esquivando_izquierda, regresando, movio_izquierda  # <-- agrega aquí
 
     menu_activo = True  # Activar de nuevo el menú
     jugador.x, jugador.y = 50, h - 100  # Reiniciar posición del jugador
@@ -259,6 +260,11 @@ def reiniciar_juego():
     pelota_nave.y = nave_arriba.y + nave_arriba.height
     velocidad_pelota_nave = gravedad
     pelota_en_caida = False
+
+    # REINICIA ESTADO DE MOVIMIENTO
+    esquivando_izquierda = False
+    regresando = False
+    movio_izquierda = False
 
     # Mostrar los datos recopilados hasta el momento
     print("Datos recopilados para el modelo: ", datos_modelo)
@@ -282,11 +288,13 @@ def main():
                         esquivando_izquierda = True
                         regresando = False
                 if evento.key == pygame.K_UP and en_suelo and not pausa:
-                    # Solo puede saltar después de esquivar a la izquierda
-                    if esquivando_izquierda:
+                    # Permitir saltar si está en la posición inicial o si ya se movió a la izquierda
+                    if jugador.x == posicion_inicial or esquivando_izquierda:
                         salto = True
                         en_suelo = False
-                        regresando = True  # Después del salto, debe regresar
+                        # Solo activar regreso si saltó desde la izquierda
+                        if esquivando_izquierda:
+                            regresando = True
                 if evento.key == pygame.K_p:
                     pausa_juego()
                 if evento.key == pygame.K_q:
