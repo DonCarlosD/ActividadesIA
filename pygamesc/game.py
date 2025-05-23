@@ -19,7 +19,7 @@ pygame.display.set_caption("Juego: Disparo de Bala, Salto, Nave y Menú")
 BLANCO = (255, 255, 255)
 NEGRO = (0, 0, 0)
 
-# Variables del jugador, bala, nave, fondo, etc.
+# Variables del jugador, bala, nave, fondo, menu, etc.
 jugador = None
 bala = None
 fondo = None
@@ -86,6 +86,7 @@ esquivando_izquierda = False
 regresando = False
 posicion_inicial = 50  # X inicial del jugador
 posicion_izquierda = 10  # X a la que se mueve para esquivar
+movio_izquierda = False  # Indica si el jugador se movió a la izquierda
 
 # Función para disparar la bala
 def disparar_bala():
@@ -198,11 +199,13 @@ def lanzar_pelota_nave():
 
 # Función para guardar datos del modelo en modo manual
 def guardar_datos():
-    global jugador, bala, velocidad_bala, salto
+    global jugador, bala, velocidad_bala, salto, pelota_nave, movio_izquierda
     distancia = abs(jugador.x - bala.x)
-    salto_hecho = 1 if salto else 0  # 1 si saltó, 0 si no saltó
-    # Guardar velocidad de la bala, distancia al jugador y si saltó o no
-    datos_modelo.append((velocidad_bala, distancia, salto_hecho))
+    salto_hecho = 1 if salto else 0
+    distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
+    movio_izquierda_val = 1 if movio_izquierda else 0
+    # Guardar velocidad de la bala, distancia al jugador, si saltó, distancia a la pelotita de arriba y si se movió a la izquierda
+    datos_modelo.append((velocidad_bala, distancia, salto_hecho, distancia_pelota_arriba, movio_izquierda_val))
 
 # Función para pausar el juego y guardar los datos
 def pausa_juego():
@@ -262,7 +265,7 @@ def reiniciar_juego():
     mostrar_menu()  # Mostrar el menú de nuevo para seleccionar modo
 
 def main():
-    global salto, en_suelo, bala_disparada, esquivando_izquierda, regresando
+    global salto, en_suelo, bala_disparada, esquivando_izquierda, regresando, movio_izquierda
 
     reloj = pygame.time.Clock()
     mostrar_menu()  # Mostrar el menú al inicio
@@ -274,7 +277,6 @@ def main():
                 correr = False
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_LEFT or evento.key == pygame.K_a:
-                    # Mover a la izquierda para esquivar la pelota de arriba
                     if not esquivando_izquierda and jugador.x == posicion_inicial:
                         jugador.x = posicion_izquierda
                         esquivando_izquierda = True
@@ -302,6 +304,10 @@ def main():
                     jugador.x = posicion_inicial
                     esquivando_izquierda = False
                     regresando = False
+
+                # ACTUALIZA AQUÍ:
+                movio_izquierda = jugador.x == posicion_izquierda
+
                 guardar_datos()
 
             # Actualizar el juego
