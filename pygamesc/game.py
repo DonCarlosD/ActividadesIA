@@ -6,6 +6,10 @@
 
 import pygame
 import random
+from sklearn.tree import DecisionTreeClassifier
+import pandas as pd
+from sklearn.neighbors import KNeighborsClassifier
+
 
 # Inicializar Pygame
 pygame.init()
@@ -25,6 +29,9 @@ bala = None
 fondo = None
 nave = None
 menu = None
+modelo = None  # Modelo de árbol de decisión
+modelo_knn = None  # Modelo KNN (opcional, si decides usarlo)
+
 
 # Variables de salto
 salto = False
@@ -207,6 +214,40 @@ def guardar_datos():
     # Guardar velocidad de la bala, distancia al jugador, si saltó, distancia a la pelotita de arriba y si se movió a la izquierda
     datos_modelo.append((velocidad_bala, distancia, salto_hecho, distancia_pelota_arriba, movio_izquierda_val))
 
+#  Función para entrenar el modelo de árbol de decisión
+def entrenar_modelo():
+    global modelo
+
+    # Convertir la lista de datos en un DataFrame
+    columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
+    df = pd.DataFrame(datos_modelo, columns=columnas)
+
+    # Variables predictoras (X) y variable objetivo (y)
+    X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
+    y = df['salto']
+
+    # Entrenar el modelo de árbol de decisión
+    modelo = DecisionTreeClassifier()
+    modelo.fit(X, y)
+    print("Modelo entrenado y listo para jugar automáticamente.")
+
+# entrener el modelo KNN (opcional)
+def entrenar_modelo_knn(k=3):
+    global modelo_knn
+
+    # Convertir la lista de datos en un DataFrame
+    columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
+    df = pd.DataFrame(datos_modelo, columns=columnas)
+
+    # Variables predictoras (X) y variable objetivo (y)
+    X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
+    y = df['salto']
+
+    # Crear y entrenar el modelo KNN
+    modelo_knn = KNeighborsClassifier(n_neighbors=k)
+    modelo_knn.fit(X, y)
+    print(f"Modelo KNN entrenado con k={k}")
+
 # Función para pausar el juego y guardar los datos
 def pausa_juego():
     global pausa
@@ -220,7 +261,7 @@ def pausa_juego():
 def mostrar_menu():
     global menu_activo, modo_auto
     pantalla.fill(NEGRO)
-    texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, o 'Q' para Salir", True, BLANCO)
+    texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, 'K' para K vecinos o 'Q' para Salir", True, BLANCO)
     pantalla.blit(texto, (w // 4, h // 2))
     pygame.display.flip()
 
@@ -232,6 +273,7 @@ def mostrar_menu():
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_a:
                     modo_auto = True
+                    entrenar_modelo()  # Entrena el modelo aquí
                     menu_activo = False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
@@ -240,6 +282,7 @@ def mostrar_menu():
                     print("Juego terminado. Datos recopilados:", datos_modelo)
                     pygame.quit()
                     exit()
+
 
 # Función para reiniciar el juego tras la colisión
 def reiniciar_juego():
@@ -322,6 +365,31 @@ def main():
             if not bala_disparada:
                 disparar_bala()
             update()
+
+        if modo_auto:
+            # Calcular características actuales
+            distancia = abs(jugador.x - bala.x)
+            distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
+            movio_izquierda_val = 1 if jugador.x == posicion_izquierda else 0
+
+            # Asegurar que el modelo está entrenado
+            if modelo is not None and en_suelo:
+                entrada = [[velocidad_bala, distancia, distancia_pelota_arriba, movio_izquierda_val]]
+                prediccion = modelo.predict(entrada)[0]
+                
+                if prediccion == 1:
+                    if jugador.x == posicion_inicial:
+                        jugador.x = posicion_izquierda
+                    salto = True
+                    en_suelo = False
+                    regresando = True
+
+            # Manejo del salto y regreso automático
+            if salto:
+                manejar_salto()
+            if regresando and not salto and en_suelo and jugador.x != posicion_inicial:
+                jugador.x = posicion_inicial
+                regresando = False
 
         # Actualizar la pantalla
         pygame.display.flip()
