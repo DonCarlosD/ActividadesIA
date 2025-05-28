@@ -224,7 +224,7 @@ def entrenar_modelo():
 
     # Variables predictoras (X) y variable objetivo (y)
     X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
-    y = df['salto']
+    y = df[['salto', 'movio_izquierda']]
 
     # Entrenar el modelo de árbol de decisión
     modelo = DecisionTreeClassifier()
@@ -260,6 +260,9 @@ def pausa_juego():
 # Función para mostrar el menú y seleccionar el modo de juego
 def mostrar_menu():
     global menu_activo, modo_auto
+    global esquivando_izquierda, regresando, movio_izquierda, salto, en_suelo
+    global datos_modelo  # <-- agrega esto
+
     pantalla.fill(NEGRO)
     texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, 'K' para K vecinos o 'Q' para Salir", True, BLANCO)
     pantalla.blit(texto, (w // 4, h // 2))
@@ -273,10 +276,24 @@ def mostrar_menu():
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_a:
                     modo_auto = True
-                    entrenar_modelo()  # Entrena el modelo aquí
+                    # Reinicia variables de estado al cambiar de modo
+                    esquivando_izquierda = False
+                    regresando = False
+                    movio_izquierda = False
+                    salto = False
+                    en_suelo = True
+                    datos_modelo = []  # <-- limpia el dataset aquí
+                    entrenar_modelo()
                     menu_activo = False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
+                    # Reinicia variables de estado al cambiar de modo
+                    esquivando_izquierda = False
+                    regresando = False
+                    movio_izquierda = False
+                    salto = False
+                    en_suelo = True
+                    datos_modelo = []  # <-- limpia el dataset aquí
                     menu_activo = False
                 elif evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
@@ -320,6 +337,8 @@ def main():
     mostrar_menu()  # Mostrar el menú al inicio
     correr = True
 
+    prev_jugador_x = jugador.x  # <-- Guarda la posición anterior del jugador
+
     while correr:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -350,16 +369,22 @@ def main():
             if not modo_auto:
                 if salto:
                     manejar_salto()
+                    guardar_datos()  # Ya guardas cada frame de salto
+
+                # Guardar cada frame mientras está esquivando a la izquierda
+                if jugador.x == posicion_izquierda:
+                    movio_izquierda = True
+                    guardar_datos()
+                else:
+                    movio_izquierda = False
+
                 # Cuando termina el salto y debe regresar
                 if regresando and not salto and en_suelo and jugador.x != posicion_inicial:
                     jugador.x = posicion_inicial
                     esquivando_izquierda = False
                     regresando = False
 
-                # ACTUALIZA AQUÍ:
-                movio_izquierda = jugador.x == posicion_izquierda
-
-                guardar_datos()
+                prev_jugador_x = jugador.x  # Actualiza la posición anterior
 
             # Actualizar el juego
             if not bala_disparada:
@@ -372,17 +397,29 @@ def main():
             distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
             movio_izquierda_val = 1 if jugador.x == posicion_izquierda else 0
 
-            # Asegurar que el modelo está entrenado
             if modelo is not None and en_suelo:
                 entrada = [[velocidad_bala, distancia, distancia_pelota_arriba, movio_izquierda_val]]
                 prediccion = modelo.predict(entrada)[0]
-                
-                if prediccion == 1:
-                    if jugador.x == posicion_inicial:
-                        jugador.x = posicion_izquierda
+                pred_salto = prediccion[0]
+                pred_izquierda = prediccion[1]
+
+                # Guardar el dato justo cuando el modelo decide esquivar a la izquierda
+                if pred_izquierda == 1 and jugador.x == posicion_inicial:
+                    movio_izquierda = True
+                    guardar_datos()
+                    jugador.x = posicion_izquierda
+                    esquivando_izquierda = True
+                    regresando = False
+                else:
+                    movio_izquierda = False
+
+                # Guardar el dato cuando el modelo decide saltar
+                if pred_salto == 1 and en_suelo:
                     salto = True
                     en_suelo = False
-                    regresando = True
+                    guardar_datos()
+                    if esquivando_izquierda:
+                        regresando = True
 
             # Manejo del salto y regreso automático
             if salto:
