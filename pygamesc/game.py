@@ -235,13 +235,18 @@ def entrenar_modelo():
 def entrenar_modelo_knn(k=3):
     global modelo_knn
 
+    if not datos_modelo:
+        print("No hay datos para entrenar el modelo.")
+        modelo_knn = None
+        return
+
     # Convertir la lista de datos en un DataFrame
     columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
     df = pd.DataFrame(datos_modelo, columns=columnas)
 
     # Variables predictoras (X) y variable objetivo (y)
     X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
-    y = df['salto']
+    y = df[['salto', 'movio_izquierda']]
 
     # Crear y entrenar el modelo KNN
     modelo_knn = KNeighborsClassifier(n_neighbors=k)
@@ -261,8 +266,19 @@ def pausa_juego():
 def mostrar_menu():
     global menu_activo, modo_auto, datos_modelo
     pantalla.fill(NEGRO)
-    texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, 'K' para K vecinos o 'Q' para Salir", True, BLANCO)
-    pantalla.blit(texto, (w // 4, h // 2))
+    lineas=[
+       "Presiona una tecla para seleccionar el modo:",
+        "'A' para Auto",
+        "'M' para Manual",
+        "'K' para K vecinos",
+        "'Q' para Salir" 
+    ]
+    # Renderizar cada línea y centrarla
+    y_inicial = h // 2 - (len(lineas) * 20) // 2  # Centra verticalmente el bloque de texto
+    for i, texto_linea in enumerate(lineas):
+        texto_render = fuente.render(texto_linea, True, BLANCO)
+        texto_rect = texto_render.get_rect(center=(w // 2, y_inicial + i * 40))
+        pantalla.blit(texto_render, texto_rect)
     pygame.display.flip()
 
     while menu_activo:
@@ -275,6 +291,10 @@ def mostrar_menu():
                     modo_auto = True
                     entrenar_modelo()
                     menu_activo = False
+                elif evento.key == pygame.K_k:
+                    modo_auto = True
+                    entrenar_modelo_knn(k=3)
+                    menu_activo= False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
                     datos_modelo = []  # <--- Limpia el dataset aquí
@@ -376,14 +396,17 @@ def main():
             update()
 
         if modo_auto:
-            # Calcular características actuales
-            distancia = abs(jugador.x - bala.x)
-            distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
-            movio_izquierda_val = 1 if jugador.x == posicion_izquierda else 0
-
-            if modelo is not None and en_suelo:
+            if (modelo is not None or modelo_knn is not None) and en_suelo:
+                distancia = abs(jugador.x - bala.x)
+                distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
+                movio_izquierda_val = 1 if jugador.x == posicion_izquierda else 0
                 entrada = [[velocidad_bala, distancia, distancia_pelota_arriba, movio_izquierda_val]]
-                prediccion = modelo.predict(entrada)[0]
+
+                if modelo_knn is not None:
+                    prediccion = modelo_knn.predict(entrada)[0]
+                else:
+                    prediccion = modelo.predict(entrada)[0]
+
                 pred_salto = prediccion[0]
                 pred_izquierda = prediccion[1]
 
