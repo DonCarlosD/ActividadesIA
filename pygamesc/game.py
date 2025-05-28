@@ -260,9 +260,6 @@ def pausa_juego():
 # Función para mostrar el menú y seleccionar el modo de juego
 def mostrar_menu():
     global menu_activo, modo_auto
-    global esquivando_izquierda, regresando, movio_izquierda, salto, en_suelo
-    global datos_modelo  # <-- agrega esto
-
     pantalla.fill(NEGRO)
     texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, 'K' para K vecinos o 'Q' para Salir", True, BLANCO)
     pantalla.blit(texto, (w // 4, h // 2))
@@ -276,24 +273,10 @@ def mostrar_menu():
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_a:
                     modo_auto = True
-                    # Reinicia variables de estado al cambiar de modo
-                    esquivando_izquierda = False
-                    regresando = False
-                    movio_izquierda = False
-                    salto = False
-                    en_suelo = True
-                    datos_modelo = []  # <-- limpia el dataset aquí
-                    entrenar_modelo()
+                    entrenar_modelo()  # Entrena el modelo aquí
                     menu_activo = False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
-                    # Reinicia variables de estado al cambiar de modo
-                    esquivando_izquierda = False
-                    regresando = False
-                    movio_izquierda = False
-                    salto = False
-                    en_suelo = True
-                    datos_modelo = []  # <-- limpia el dataset aquí
                     menu_activo = False
                 elif evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
