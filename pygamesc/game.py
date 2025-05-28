@@ -218,15 +218,15 @@ def guardar_datos():
 def entrenar_modelo():
     global modelo
 
-    # Convertir la lista de datos en un DataFrame
+    if not datos_modelo:
+        print("No hay datos para entrenar el modelo.")
+        modelo = None
+        return
+
     columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
     df = pd.DataFrame(datos_modelo, columns=columnas)
-
-    # Variables predictoras (X) y variable objetivo (y)
     X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
     y = df[['salto', 'movio_izquierda']]
-
-    # Entrenar el modelo de árbol de decisión
     modelo = DecisionTreeClassifier()
     modelo.fit(X, y)
     print("Modelo entrenado y listo para jugar automáticamente.")
@@ -259,7 +259,7 @@ def pausa_juego():
 
 # Función para mostrar el menú y seleccionar el modo de juego
 def mostrar_menu():
-    global menu_activo, modo_auto
+    global menu_activo, modo_auto, datos_modelo
     pantalla.fill(NEGRO)
     texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, 'K' para K vecinos o 'Q' para Salir", True, BLANCO)
     pantalla.blit(texto, (w // 4, h // 2))
@@ -273,10 +273,11 @@ def mostrar_menu():
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_a:
                     modo_auto = True
-                    entrenar_modelo()  # Entrena el modelo aquí
+                    entrenar_modelo()
                     menu_activo = False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
+                    datos_modelo = []  # <--- Limpia el dataset aquí
                     menu_activo = False
                 elif evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
