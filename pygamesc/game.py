@@ -1,11 +1,12 @@
-# regresion lineal con tercer variable no va a jalar
-# x1 = velocidad de la bala
-# x2 = distancia entre el jugador y la bala
-# y = salto (1 o 0)
-# 
-
 import pygame
 import random
+from sklearn.tree import DecisionTreeClassifier
+import pandas as pd
+from sklearn.neighbors import KNeighborsClassifier
+import numpy as np
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+
 
 # Inicializar Pygame
 pygame.init()
@@ -19,12 +20,15 @@ pygame.display.set_caption("Juego: Disparo de Bala, Salto, Nave y Menú")
 BLANCO = (255, 255, 255)
 NEGRO = (0, 0, 0)
 
-# Variables del jugador, bala, nave, fondo, etc.
+# Variables del jugador, bala, nave, fondo, menu, etc.
 jugador = None
 bala = None
 fondo = None
 nave = None
 menu = None
+modelo = None  # Modelo de árbol de decisión
+modelo_knn = None  # Modelo KNN (opcional, si decides usarlo)
+
 
 # Variables de salto
 salto = False
@@ -61,7 +65,12 @@ fondo_img = pygame.transform.scale(fondo_img, (w, h))
 jugador = pygame.Rect(50, h - 100, 32, 48)
 bala = pygame.Rect(w - 50, h - 90, 16, 16)
 nave = pygame.Rect(w - 100, h - 100, 64, 64)
+nave_arriba = pygame.Rect(jugador.x, jugador.y - 64, 64, 64)  # Nueva nave arriba del jugador
 menu_rect = pygame.Rect(w // 2 - 135, h // 2 - 90, 270, 180)  # Tamaño del menú
+
+pelota_nave = pygame.Rect(jugador.x, 0, 16, 16)  # Pelotita lanzada desde la nave de arriba
+velocidad_pelota_nave = 0
+pelota_en_caida = False
 
 # Variables para la animación del jugador
 current_frame = 0
@@ -75,6 +84,13 @@ bala_disparada = False
 # Variables para el fondo en movimiento
 fondo_x1 = 0
 fondo_x2 = w
+
+# Nueva variable para controlar si el jugador está esquivando a la izquierda
+esquivando_izquierda = False
+regresando = False
+posicion_inicial = 50  # X inicial del jugador
+posicion_izquierda = 10  # X a la que se mueve para esquivar
+movio_izquierda = False  # Indica si el jugador se movió a la izquierda
 
 # Función para disparar la bala
 def disparar_bala():
@@ -106,7 +122,8 @@ def manejar_salto():
 
 # Función para actualizar el juego
 def update():
-    global bala, velocidad_bala, current_frame, frame_count, fondo_x1, fondo_x2
+    global bala, velocidad_bala, current_frame, frame_count, fondo_x1, fondo_x2, nave_arriba
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida
 
     # Mover el fondo
     fondo_x1 -= 1
@@ -133,8 +150,30 @@ def update():
     # Dibujar el jugador con la animación
     pantalla.blit(jugador_frames[current_frame], (jugador.x, jugador.y))
 
-    # Dibujar la nave
-    pantalla.blit(nave_img, (nave.x, nave.y))
+    # La nave de arriba siempre está fija en la parte superior, alineada con la posición inicial del jugador
+    nave_arriba.x = posicion_inicial - 16  # Centrar la nave sobre la posición inicial del jugador
+    nave_arriba.y = 0  # Siempre arriba
+
+    # Lanzar la pelotita si no está cayendo
+    if not pelota_en_caida:
+        pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8  # Centrar respecto a la nave
+        pelota_nave.y = nave_arriba.y + nave_arriba.height
+        velocidad_pelota_nave = gravedad
+        pelota_en_caida = True
+
+    # Mover la pelotita si está cayendo
+    if pelota_en_caida:
+        pelota_nave.y += velocidad_pelota_nave
+        pantalla.blit(bala_img, (pelota_nave.x, pelota_nave.y))  # Puedes usar otra imagen si quieres
+
+        # Colisión entre la pelotita y el jugador
+        if jugador.colliderect(pelota_nave):
+            print("¡Colisión con la pelotita de la nave!")
+            reiniciar_juego()
+
+        # Si la pelotita llega al suelo, reiniciar
+        if pelota_nave.y > h:
+            pelota_en_caida = False
 
     # Mover y dibujar la bala
     if bala_disparada:
@@ -151,13 +190,88 @@ def update():
         print("Colisión detectada!")
         reiniciar_juego()  # Terminar el juego y mostrar el menú
 
+    # Dibujar la nave
+    pantalla.blit(nave_img, (nave.x, nave.y))
+    pantalla.blit(nave_img, (nave_arriba.x, nave_arriba.y))  # Dibuja la nueva nave arriba del jugador
+
+def lanzar_pelota_nave():
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida
+    pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8  # Centrar la pelotita respecto a la nave
+    pelota_nave.y = nave_arriba.y + nave_arriba.height
+    velocidad_pelota_nave = gravedad  # Velocidad igual a la gravedad
+    pelota_en_caida = True
+
 # Función para guardar datos del modelo en modo manual
 def guardar_datos():
-    global jugador, bala, velocidad_bala, salto
+    global jugador, bala, velocidad_bala, salto, pelota_nave, movio_izquierda
     distancia = abs(jugador.x - bala.x)
-    salto_hecho = 1 if salto else 0  # 1 si saltó, 0 si no saltó
-    # Guardar velocidad de la bala, distancia al jugador y si saltó o no
-    datos_modelo.append((velocidad_bala, distancia, salto_hecho))
+    salto_hecho = 1 if salto else 0
+    distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
+    movio_izquierda_val = 1 if movio_izquierda else 0
+    # Guardar velocidad de la bala, distancia al jugador, si saltó, distancia a la pelotita de arriba y si se movió a la izquierda
+    datos_modelo.append((velocidad_bala, distancia, salto_hecho, distancia_pelota_arriba, movio_izquierda_val))
+
+#  Función para entrenar el modelo de árbol de decisión
+def entrenar_modelo():
+    global modelo
+
+    if not datos_modelo:
+        print("No hay datos para entrenar el modelo.")
+        modelo = None
+        return
+
+    columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
+    df = pd.DataFrame(datos_modelo, columns=columnas)
+    X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
+    y = df[['salto', 'movio_izquierda']]
+    modelo = DecisionTreeClassifier()
+    modelo.fit(X, y)
+    print("Modelo entrenado y listo para jugar automáticamente.")
+
+# entrener el modelo KNN (opcional)
+def entrenar_modelo_knn(k=3):
+    global modelo_knn
+
+    if not datos_modelo:
+        print("No hay datos para entrenar el modelo.")
+        modelo_knn = None
+        return
+
+    # Convertir la lista de datos en un DataFrame
+    columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
+    df = pd.DataFrame(datos_modelo, columns=columnas)
+
+    # Variables predictoras (X) y variable objetivo (y)
+    X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
+    y = df[['salto', 'movio_izquierda']]
+
+    # Crear y entrenar el modelo KNN
+    modelo_knn = KNeighborsClassifier(n_neighbors=k)
+    modelo_knn.fit(X, y)
+    print(f"Modelo KNN entrenado con k={k}")
+
+# Función para entrenar un modelo de red neuronal
+def entrenar_modelo_nn():
+    global modelo_nn, scaler 
+
+    if not datos_modelo:
+        print("No hay datos para entrenar el modelo.")
+        modelo_nn = None
+        return
+    # Convertir la lista de datos en un DataFrame
+    columnas = ['velocidad_bala', 'distancia_bala', 'salto', 'distancia_pelota_arriba', 'movio_izquierda']
+    df = pd.DataFrame(datos_modelo, columns=columnas)
+    # Variables predictoras (X) y variable objetivo (y)
+    X = df[['velocidad_bala', 'distancia_bala', 'distancia_pelota_arriba', 'movio_izquierda']]
+    y = df[['salto', 'movio_izquierda']]
+
+    # Escalar las características
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    # Crear y entrenar el modelo de red neuronal
+    modelo_nn = MLPClassifier(hidden_layer_sizes=(10, 10), max_iter=1000)
+    modelo_nn.fit(X_scaled, y)
+    print("Modelo de red neuronal entrenado y listo para jugar automáticamente.")
 
 # Función para pausar el juego y guardar los datos
 def pausa_juego():
@@ -170,10 +284,24 @@ def pausa_juego():
 
 # Función para mostrar el menú y seleccionar el modo de juego
 def mostrar_menu():
-    global menu_activo, modo_auto
+    global menu_activo, modo_auto, datos_modelo
+    global modelo, modelo_knn, modelo_nn, scaler  # <-- Añade esto para limpiar correctamente
+
     pantalla.fill(NEGRO)
-    texto = fuente.render("Presiona 'A' para Auto, 'M' para Manual, o 'Q' para Salir", True, BLANCO)
-    pantalla.blit(texto, (w // 4, h // 2))
+    lineas=[
+       "Presiona una tecla para seleccionar el modo:",
+        "'A' para Auto",
+        "'M' para Manual",
+        "'K' para K vecinos",
+        "'N' para Red neuronal",
+        "'Q' para Salir" 
+    ]
+    # Renderizar cada línea y centrarla
+    y_inicial = h // 2 - (len(lineas) * 20) // 2  # Centra verticalmente el bloque de texto
+    for i, texto_linea in enumerate(lineas):
+        texto_render = fuente.render(texto_linea, True, BLANCO)
+        texto_rect = texto_render.get_rect(center=(w // 2, y_inicial + i * 40))
+        pantalla.blit(texto_render, texto_rect)
     pygame.display.flip()
 
     while menu_activo:
@@ -184,18 +312,48 @@ def mostrar_menu():
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_a:
                     modo_auto = True
+                    entrenar_modelo()
+                    # Limpia después de entrenar si lo deseas
+                    modelo_knn = None
+                    modelo_nn = None
+                    scaler = None
+                    # datos_modelo = []  # Si quieres limpiar los datos, descomenta esto
+                    menu_activo = False
+                elif evento.key == pygame.K_k:
+                    modo_auto = True
+                    entrenar_modelo_knn(k=3)
+                    modelo = None
+                    modelo_nn = None
+                    scaler = None
+                    # datos_modelo = []
+                    menu_activo = False
+                elif evento.key == pygame.K_n:
+                    modo_auto = True
+                    entrenar_modelo_nn()
+                    modelo = None
+                    modelo_knn = None
+                    # datos_modelo = []
                     menu_activo = False
                 elif evento.key == pygame.K_m:
                     modo_auto = False
+                    modelo = None
+                    modelo_knn = None
+                    modelo_nn = None
+                    scaler = None
+                    datos_modelo = []  # Limpia el dataset aquí
                     menu_activo = False
                 elif evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
                     pygame.quit()
                     exit()
 
+
 # Función para reiniciar el juego tras la colisión
 def reiniciar_juego():
     global menu_activo, jugador, bala, nave, bala_disparada, salto, en_suelo
+    global pelota_nave, velocidad_pelota_nave, pelota_en_caida, nave_arriba
+    global esquivando_izquierda, regresando, movio_izquierda  # <-- agrega aquí
+
     menu_activo = True  # Activar de nuevo el menú
     jugador.x, jugador.y = 50, h - 100  # Reiniciar posición del jugador
     bala.x = w - 50  # Reiniciar posición de la bala
@@ -203,44 +361,127 @@ def reiniciar_juego():
     bala_disparada = False
     salto = False
     en_suelo = True
+
+    # Reiniciar la pelotita de la nave de arriba
+    pelota_nave.x = nave_arriba.x + (nave_arriba.width // 2) - 8
+    pelota_nave.y = nave_arriba.y + nave_arriba.height
+    velocidad_pelota_nave = gravedad
+    pelota_en_caida = False
+
+    # REINICIA ESTADO DE MOVIMIENTO
+    esquivando_izquierda = False
+    regresando = False
+    movio_izquierda = False
+
     # Mostrar los datos recopilados hasta el momento
     print("Datos recopilados para el modelo: ", datos_modelo)
     mostrar_menu()  # Mostrar el menú de nuevo para seleccionar modo
 
 def main():
-    global salto, en_suelo, bala_disparada
+    global salto, en_suelo, bala_disparada, esquivando_izquierda, regresando, movio_izquierda
 
     reloj = pygame.time.Clock()
     mostrar_menu()  # Mostrar el menú al inicio
     correr = True
+
+    prev_jugador_x = jugador.x  # <-- Guarda la posición anterior del jugador
 
     while correr:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 correr = False
             if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_SPACE and en_suelo and not pausa:  # Detectar la tecla espacio para saltar
-                    salto = True
-                    en_suelo = False
-                if evento.key == pygame.K_p:  # Presiona 'p' para pausar el juego
+                if evento.key == pygame.K_LEFT or evento.key == pygame.K_a:
+                    if not esquivando_izquierda and jugador.x == posicion_inicial:
+                        jugador.x = posicion_izquierda
+                        esquivando_izquierda = True
+                        regresando = False
+                if evento.key == pygame.K_UP and en_suelo and not pausa:
+                    # Permitir saltar si está en la posición inicial o si ya se movió a la izquierda
+                    if jugador.x == posicion_inicial or esquivando_izquierda:
+                        salto = True
+                        en_suelo = False
+                        # Solo activar regreso si saltó desde la izquierda
+                        if esquivando_izquierda:
+                            regresando = True
+                if evento.key == pygame.K_p:
                     pausa_juego()
-                if evento.key == pygame.K_q:  # Presiona 'q' para terminar el juego
+                if evento.key == pygame.K_q:
                     print("Juego terminado. Datos recopilados:", datos_modelo)
                     pygame.quit()
                     exit()
 
         if not pausa:
-            # Modo manual: el jugador controla el salto
+            # Modo manual: el jugador controla el salto y el movimiento lateral
             if not modo_auto:
                 if salto:
                     manejar_salto()
-                # Guardar los datos si estamos en modo manual
-                guardar_datos()
+                    guardar_datos()  # Ya guardas cada frame de salto
+
+                # Guardar cada frame mientras está esquivando a la izquierda
+                if jugador.x == posicion_izquierda:
+                    movio_izquierda = True
+                    guardar_datos()
+                else:
+                    movio_izquierda = False
+
+                # Cuando termina el salto y debe regresar
+                if regresando and not salto and en_suelo and jugador.x != posicion_inicial:
+                    jugador.x = posicion_inicial
+                    esquivando_izquierda = False
+                    regresando = False
+
+                prev_jugador_x = jugador.x  # Actualiza la posición anterior
 
             # Actualizar el juego
             if not bala_disparada:
                 disparar_bala()
             update()
+
+        if modo_auto:
+            if (modelo is not None or modelo_knn is not None or modelo_nn is not None) and en_suelo:
+                distancia = abs(jugador.x - bala.x)
+                distancia_pelota_arriba = abs(jugador.x - pelota_nave.x)
+                movio_izquierda_val = 1 if jugador.x == posicion_izquierda else 0
+                entrada = [[velocidad_bala, distancia, distancia_pelota_arriba, movio_izquierda_val]]
+
+                if modelo_knn is not None:
+                    prediccion = modelo_knn.predict(entrada)[0]
+                elif modelo_nn is not None:
+                    # Recuerda escalar la entrada igual que en el entrenamiento
+                    X = np.array(entrada)
+                    X_scaled = scaler.transform(X)
+                    prediccion = modelo_nn.predict(X_scaled)[0]
+                else:
+                    prediccion = modelo.predict(entrada)[0]
+
+                pred_salto = prediccion[0]
+                pred_izquierda = prediccion[1]
+
+                # Guardar el dato justo cuando el modelo decide esquivar a la izquierda
+                if pred_izquierda == 1 and jugador.x == posicion_inicial:
+                    movio_izquierda = True
+                    guardar_datos()
+                    jugador.x = posicion_izquierda
+                    esquivando_izquierda = True
+                    regresando = False
+                else:
+                    movio_izquierda = False
+
+                # Guardar el dato cuando el modelo decide saltar
+                if pred_salto == 1 and en_suelo:
+                    salto = True
+                    en_suelo = False
+                    guardar_datos()
+                    if esquivando_izquierda:
+                        regresando = True
+
+            # Manejo del salto y regreso automático
+            if salto:
+                manejar_salto()
+            if regresando and not salto and en_suelo and jugador.x != posicion_inicial:
+                jugador.x = posicion_inicial
+                regresando = False
 
         # Actualizar la pantalla
         pygame.display.flip()
