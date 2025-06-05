@@ -14,6 +14,8 @@ Este documento presenta el desarrollo del proyecto que tiene como objetivo entre
 
 El proposito principal del proyecto es crear un modelo que pueda comprender y responder sobre temas en particulas, por medio de documentos releventes, para ello usamos el fine-tuning por medio de las recuperacion de contexto con embeddings. Se llevaton a cabo pruebas para evaluar la coherencia, relevancia y valides de las respues generadas, con el fin de vrificar si el modelo cumple con los objetivos propuestos.
 
+[video del proyecto](https://drive.google.com/file/d/1zAnTI0HsKhk-y-gkLBC9HLk5wxDTLkP3/view?usp=sharing)
+
 ### Objetivo General
 
 Desarrrollar un sistema basado en modelos de lenguaje Natural(LLM) el cual sea capaz de responder ccon coherencia y presicion sobre temas especificos los cuales son sobre el Aborto y la Eutanasia, utilizando tecnicas de fine-tuning y genereacion de embeddings, con el fin de evaluar la capacidad para interpretar informacion, contextual, generar respestas relevantes y ser aplicado en escenario de consulta asistida por medio de inteligencia artificial.
@@ -197,3 +199,4 @@ Pregunta 5
 Con base en los resultados obtenidos a partir de las respuestas generadas por el modelo ante las preguntas planteadas, se puede concluir que el comportamiento del modelo fue neutral y equilibrado. En ningún momento adoptó una postura claramente a favor o en contra del aborto o de la eutanasia. Esta neutralidad se debe, en parte, al enfoque elegido durante el proceso de entrenamiento, donde se proporcionó información diversa y no polarizada, con el objetivo de observar cómo el modelo interpretaba ambos lados de cada dilema ético.
 
 El diseño del fine-tuning y la selección de documentos se orientaron a presentar tanto argumentos a favor como en contra de cada tema, permitiendo así que el modelo respondiera con una perspectiva más amplia y reflexiva. El resultado fue coherente: el modelo fue capaz de identificar posturas contrastantes y explicarlas sin emitir juicios, respetando los principios éticos del análisis objetivo. Esta característica lo hace especialmente útil como herramienta de apoyo para el debate académico o la consulta en temas de bioética compleja.
+
